@@ -31,7 +31,8 @@ NIA    | User name | Repo | Build Status | Improvement | Score
 559207 | RUEDA MACÍAS, DANIEL | [test repo](https://github.com/danirueda/lab3-restful-ws/tree/test) | [![Build Status](https://travis-ci.org/danirueda/lab3-restful-ws.svg?branch=test)](https://travis-ci.org/danirueda/lab3-restful-ws) 
 610344 | SALUEÑA SEDILES, ASIER | [test repo](https://github.com/asierhandball/lab3-restful-ws/tree/test) | [![Build Status](https://travis-ci.org/asierhandball/lab3-restful-ws.svg?branch=test)](https://travis-ci.org/asierhandball/lab3-restful-ws)
 680182 | SANZ ALCAINE, JORGE
-534521 | SANZ VIDAL, AITOR
+534521 | SANZ VIDAL, AITOR | [test repo](https://github.com/aitorsanz/lab3-restful-ws/tree/test) | [![Build Status](https://travis-ci.org/aitorsanz/lab3-restful-ws.svg?branch=test)](https://travis-ci.org/aitorsanz/lab3-restful-ws)
 618051 | TOLON MARTÍN, CARLOS JAVIER | [test repo](https://github.com/ctolon22/lab3-restful-ws/tree/test) | [![Build Status](https://travis-ci.org/ctolon22/lab3-restful-ws.svg?branch=test)](https://travis-ci.org/ctolon22/lab3-restful-ws)
 643821 | VELA GARCÍA, JUAN
 679609 | VIÑUALES SÁNCHEZ, PABLO
+
