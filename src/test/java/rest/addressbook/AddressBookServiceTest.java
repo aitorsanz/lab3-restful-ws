@@ -1,324 +1,118 @@
-package rest.addressbook;
+package rest.addressbook.web;
 
-import org.glassfish.grizzly.http.server.HttpServer;
-import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
-import org.junit.After;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.net.URI;
-
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Entity;
+import javax.inject.Inject;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriInfo;
 
-import rest.addressbook.config.ApplicationConfig;
 import rest.addressbook.domain.AddressBook;
 import rest.addressbook.domain.Person;
 
-import static org.junit.Assert.assertEquals;
-
 /**
- * A simple test suite
+ * A service that manipulates contacts in an address book.
  *
  */
-public class AddressBookServiceTest {
+@Path("/contacts")
+public class AddressBookController {
 
-	private HttpServer server;
+	/**
+	 * The (shared) address book object. 
+	 */
+	@Inject
+	AddressBook addressBook;
 
-	@Test
-	public void serviceIsAlive() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		launchServer(ab);
-
-		// Request the address book
-		Client client = ClientBuilder.newClient();
-		Response response = client.target("http://localhost:8282/contacts")
-				.request().get();
-		assertEquals(200, response.getStatus());
-		assertEquals(0, response.readEntity(AddressBook.class).getPersonList()
-				.size());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that GET /contacts is well implemented by the service, i.e
-		// test that it is safe and idempotent
-		//////////////////////////////////////////////////////////////////////	
+	/**
+	 * A GET /contacts request should return the address book in JSON.
+	 * @return a JSON representation of the address book.
+	 */
+	@GET
+	@Produces(MediaType.APPLICATION_JSON)
+	public AddressBook getAddressBook() {
+		return addressBook;
 	}
 
-	@Test
-	public void createUser() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		launchServer(ab);
-
-		// Prepare data
-		Person juan = new Person();
-		juan.setName("Juan");
-		URI juanURI = URI.create("http://localhost:8282/contacts/person/1");
-
-		// Create a new user
-		Client client = ClientBuilder.newClient();
-		Response response = client.target("http://localhost:8282/contacts")
-				.request(MediaType.APPLICATION_JSON)
-				.post(Entity.entity(juan, MediaType.APPLICATION_JSON));
-
-		assertEquals(201, response.getStatus());
-		assertEquals(juanURI, response.getLocation());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		Person juanUpdated = response.readEntity(Person.class);
-		assertEquals(juan.getName(), juanUpdated.getName());
-		assertEquals(1, juanUpdated.getId());
-		assertEquals(juanURI, juanUpdated.getHref());
-
-		// Check that the new user exists
-		response = client.target("http://localhost:8282/contacts/person/1")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		juanUpdated = response.readEntity(Person.class);
-		assertEquals(juan.getName(), juanUpdated.getName());
-		assertEquals(1, juanUpdated.getId());
-		assertEquals(juanURI, juanUpdated.getHref());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that POST /contacts is well implemented by the service, i.e
-		// test that it is not safe and not idempotent
-		//////////////////////////////////////////////////////////////////////	
-				
+	/**
+	 * A POST /contacts request should add a new entry to the address book.
+	 * @param info the URI information of the request
+	 * @param person the posted entity
+	 * @return a JSON representation of the new entry that should be available at /contacts/person/{id}.
+	 */
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response addPerson(@Context UriInfo info, Person person) {
+		addressBook.getPersonList().add(person);
+		person.setId(addressBook.nextId());
+		person.setHref(info.getAbsolutePathBuilder().path("person/{id}").build(person.getId()));
+		return Response.created(person.getHref()).entity(person).build();
 	}
 
-	@Test
-	public void createUsers() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		Person salvador = new Person();
-		salvador.setName("Salvador");
-		salvador.setId(ab.nextId());
-		ab.getPersonList().add(salvador);
-		launchServer(ab);
-
-		// Prepare data
-		Person juan = new Person();
-		juan.setName("Juan");
-		URI juanURI = URI.create("http://localhost:8282/contacts/person/2");
-		Person maria = new Person();
-		maria.setName("Maria");
-		URI mariaURI = URI.create("http://localhost:8282/contacts/person/3");
-
-		// Create a user
-		Client client = ClientBuilder.newClient();
-		Response response = client.target("http://localhost:8282/contacts")
-				.request(MediaType.APPLICATION_JSON)
-				.post(Entity.entity(juan, MediaType.APPLICATION_JSON));
-		assertEquals(201, response.getStatus());
-		assertEquals(juanURI, response.getLocation());
-
-		// Create a second user
-		response = client.target("http://localhost:8282/contacts")
-				.request(MediaType.APPLICATION_JSON)
-				.post(Entity.entity(maria, MediaType.APPLICATION_JSON));
-		assertEquals(201, response.getStatus());
-		assertEquals(mariaURI, response.getLocation());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		Person mariaUpdated = response.readEntity(Person.class);
-		assertEquals(maria.getName(), mariaUpdated.getName());
-		assertEquals(3, mariaUpdated.getId());
-		assertEquals(mariaURI, mariaUpdated.getHref());
-
-		// Check that the new user exists
-		response = client.target("http://localhost:8282/contacts/person/3")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		mariaUpdated = response.readEntity(Person.class);
-		assertEquals(maria.getName(), mariaUpdated.getName());
-		assertEquals(3, mariaUpdated.getId());
-		assertEquals(mariaURI, mariaUpdated.getHref());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that GET /contacts/person/3 is well implemented by the service, i.e
-		// test that it is safe and idempotent
-		//////////////////////////////////////////////////////////////////////	
-	
-	}
-
-	@Test
-	public void listUsers() throws IOException {
-
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		Person salvador = new Person();
-		salvador.setName("Salvador");
-		Person juan = new Person();
-		juan.setName("Juan");
-		ab.getPersonList().add(salvador);
-		ab.getPersonList().add(juan);
-		launchServer(ab);
-
-		// Test list of contacts
-		Client client = ClientBuilder.newClient();
-		Response response = client.target("http://localhost:8282/contacts")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		AddressBook addressBookRetrieved = response
-				.readEntity(AddressBook.class);
-		assertEquals(2, addressBookRetrieved.getPersonList().size());
-		assertEquals(juan.getName(), addressBookRetrieved.getPersonList()
-				.get(1).getName());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that GET for collections is well implemented by the service, i.e
-		// test that it is safe and idempotent
-		//////////////////////////////////////////////////////////////////////	
-	
-	}
-
-	@Test
-	public void updateUsers() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		Person salvador = new Person();
-		salvador.setName("Salvador");
-		salvador.setId(ab.nextId());
-		Person juan = new Person();
-		juan.setName("Juan");
-		juan.setId(ab.getNextId());
-		URI juanURI = URI.create("http://localhost:8282/contacts/person/2");
-		ab.getPersonList().add(salvador);
-		ab.getPersonList().add(juan);
-		launchServer(ab);
-
-		// Update Maria
-		Person maria = new Person();
-		maria.setName("Maria");
-		Client client = ClientBuilder.newClient();
-		Response response = client
-				.target("http://localhost:8282/contacts/person/2")
-				.request(MediaType.APPLICATION_JSON)
-				.put(Entity.entity(maria, MediaType.APPLICATION_JSON));
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		Person juanUpdated = response.readEntity(Person.class);
-		assertEquals(maria.getName(), juanUpdated.getName());
-		assertEquals(2, juanUpdated.getId());
-		assertEquals(juanURI, juanUpdated.getHref());
-
-		// Verify that the update is real
-		response = client.target("http://localhost:8282/contacts/person/2")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		Person mariaRetrieved = response.readEntity(Person.class);
-		assertEquals(maria.getName(), mariaRetrieved.getName());
-		assertEquals(2, mariaRetrieved.getId());
-		assertEquals(juanURI, mariaRetrieved.getHref());
-
-		// Verify that only can be updated existing values
-		response = client.target("http://localhost:8282/contacts/person/3")
-				.request(MediaType.APPLICATION_JSON)
-				.put(Entity.entity(maria, MediaType.APPLICATION_JSON));
-		assertEquals(400, response.getStatus());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that PUT /contacts/person/2 is well implemented by the service, i.e
-		// test that it is idempotent
-		//////////////////////////////////////////////////////////////////////	
-	
-	}
-
-	@Test
-	public void deleteUsers() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		Person salvador = new Person();
-		salvador.setName("Salvador");
-		salvador.setId(1);
-		Person juan = new Person();
-		juan.setName("Juan");
-		juan.setId(2);
-		ab.getPersonList().add(salvador);
-		ab.getPersonList().add(juan);
-		launchServer(ab);
-
-		// Delete a user
-		Client client = ClientBuilder.newClient();
-		Response response = client
-				.target("http://localhost:8282/contacts/person/2").request()
-				.delete();
-		assertEquals(204, response.getStatus());
-
-		// Verify that the user has been deleted
-		response = client.target("http://localhost:8282/contacts/person/2")
-				.request().delete();
-		assertEquals(404, response.getStatus());
-
-		//////////////////////////////////////////////////////////////////////
-		// Verify that DELETE /contacts/person/2 is well implemented by the service, i.e
-		// test that it is idempotent
-		//////////////////////////////////////////////////////////////////////	
-
-	}
-
-	@Test
-	public void findUsers() throws IOException {
-		// Prepare server
-		AddressBook ab = new AddressBook();
-		Person salvador = new Person();
-		salvador.setName("Salvador");
-		salvador.setId(1);
-		Person juan = new Person();
-		juan.setName("Juan");
-		juan.setId(2);
-		ab.getPersonList().add(salvador);
-		ab.getPersonList().add(juan);
-		launchServer(ab);
-
-		// Test user 1 exists
-		Client client = ClientBuilder.newClient();
-		Response response = client
-				.target("http://localhost:8282/contacts/person/1")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		Person person = response.readEntity(Person.class);
-		assertEquals(person.getName(), salvador.getName());
-		assertEquals(person.getId(), salvador.getId());
-		assertEquals(person.getHref(), salvador.getHref());
-
-		// Test user 2 exists
-		response = client.target("http://localhost:8282/contacts/person/2")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(200, response.getStatus());
-		assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
-		person = response.readEntity(Person.class);
-		assertEquals(person.getName(), juan.getName());
-		assertEquals(2, juan.getId());
-		assertEquals(person.getHref(), juan.getHref());
-
-		// Test user 3 exists
-		response = client.target("http://localhost:8282/contacts/person/3")
-				.request(MediaType.APPLICATION_JSON).get();
-		assertEquals(404, response.getStatus());
-	}
-
-	private void launchServer(AddressBook ab) throws IOException {
-		URI uri = UriBuilder.fromUri("http://localhost/").port(8282).build();
-		server = GrizzlyHttpServerFactory.createHttpServer(uri,
-				new ApplicationConfig(ab));
-		server.start();
-	}
-
-	@After
-	public void shutdown() {
-		if (server != null) {
-			server.shutdownNow();
+	/**
+	 * A GET /contacts/person/{id} request should return a entry from the address book
+	 * @param id the unique identifier of a person
+	 * @return a JSON representation of the new entry or 404
+	 */
+	@GET
+	@Path("/person/{id}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPerson(@PathParam("id") int id) {
+		for (Person p : addressBook.getPersonList()) {
+			if (p.getId() == id) {
+				return Response.ok(p).build();
+			}
 		}
-		server = null;
+		return Response.status(Status.NOT_FOUND).build();
+	}
+
+	/**
+	 * A PUT /contacts/person/{id} should update a entry if exists
+	 * @param info the URI information of the request
+	 * @param person the posted entity
+	 * @param id the unique identifier of a person
+	 * @return a JSON representation of the new updated entry or 400 if the id is not a key
+	 */
+	@PUT
+	@Path("/person/{id}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response updatePerson(@Context UriInfo info,
+			@PathParam("id") int id, Person person) {
+		for (int i = 0; i < addressBook.getPersonList().size(); i++) {
+			if (addressBook.getPersonList().get(i).getId() == id) {
+				person.setId(id);
+				person.setHref(info.getAbsolutePath());
+				addressBook.getPersonList().set(i, person);
+				return Response.ok(person).build();
+			}
+		}
+		return Response.status(Status.BAD_REQUEST).build();
+	}
+
+	/**
+	 * A DELETE /contacts/person/{id} should delete a entry if exists
+	 * @param id the unique identifier of a person
+	 * @return 204 if the request is successful, 404 if the id is not a key
+	 */
+	@DELETE
+	@Path("/person/{id}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response updatePerson(@PathParam("id") int id) {
+		for (int i = 0; i < addressBook.getPersonList().size(); i++) {
+			if (addressBook.getPersonList().get(i).getId() == id) {
+				addressBook.getPersonList().remove(i);
+				return Response.noContent().build();
+			}
+		}
+		return Response.status(Status.NOT_FOUND).build();
 	}
 
 }
+
